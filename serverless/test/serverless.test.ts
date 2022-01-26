@@ -57,6 +57,9 @@ describe("StackTests", () => {
       Runtime: "nodejs14.x",
     });
   });
+  test("Only 4 Lambda", () => {
+    template.resourceCountIs("AWS::Lambda::Function", 4);
+  });
   test("DynamoDB", () => {
     template.hasResourceProperties("AWS::DynamoDB::Table", {
       KeySchema: [

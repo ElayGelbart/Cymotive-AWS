@@ -1,27 +1,22 @@
-import { APIGatewayProxyHandler } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyHandler } from "aws-lambda";
 import { nanoid } from "nanoid";
 import * as AWS from "aws-sdk";
-const s3 = new AWS.S3();
+const s3 = new AWS.S3({ region: "eu-west-1" });
 
-const bucketName = process.env.BUCKET;
+const bucketName = process.env.BUCKET || "cymotive-reports-test";
 
-export const handler: APIGatewayProxyHandler = async (event) => {
+export const handler = async (event: APIGatewayProxyEvent) => {
   const ranID = nanoid();
-  console.log("event", event, event.body);
   const params = {
     Body: event.body as string,
     Bucket: bucketName as string,
     Key: `${ranID}.json`,
   };
   try {
-    const s3Response = await s3
-      .putObject(params, (err, data) => {
-        if (err) {
-          throw err;
-        }
-        return data;
-      })
-      .promise();
+    if (!event.body) {
+      throw new Error("Please Add Body");
+    }
+    const s3Response = await s3.putObject(params).promise();
     return {
       statusCode: 200,
       body: JSON.stringify(s3Response),

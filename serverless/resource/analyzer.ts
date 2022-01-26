@@ -1,80 +1,46 @@
-import * as AWS from "aws-sdk";
-import { APIGatewayProxyHandler } from "aws-lambda";
-const ddb = new AWS.DynamoDB.DocumentClient();
-const tableName = process.env.DDBTABLE as string;
-export const handler: APIGatewayProxyHandler = async (event) => {
+import { DynamoDB } from "aws-sdk";
+import { APIGatewayProxyEvent } from "aws-lambda"; //Typescript
+const ddb = new DynamoDB.DocumentClient({ region: "eu-west-1" });
+const tableName = (process.env.DDBTABLE as string) || "ids-table-test";
+export const handler = async (event: APIGatewayProxyEvent) => {
   let resBody = "RESPONSE";
   let resStatusCode = 200;
   const { path } = event;
-  if (path === "/numberOfReports") {
-    const params = { TableName: tableName };
-    const result = await ddb
-      .scan(params, (err, data) => {
-        if (err) return "";
-        return data;
-      })
-      .promise();
-    if (!result.Items) {
-      resBody = "internal error";
-      resStatusCode = 500;
-    } else {
-      resBody = JSON.stringify(result.Items.length);
-    }
-  } else if (path === "/numberofvehicles") {
-    const params = { TableName: tableName };
-    const result = await ddb
-      .scan(params, (err, data) => {
-        if (err) return "";
-        return data;
-      })
-      .promise();
-    if (!result.Items) {
-      resBody = "internal error";
-      resStatusCode = 500;
-    } else {
+  const params = { TableName: tableName };
+  try {
+    if (path === "/numberofreports") {
+      const result = await ddb.scan(params).promise();
+      resBody = JSON.stringify(result.Items?.length);
+    } else if (path === "/numberofvehicles") {
+      const result = await ddb.scan(params).promise();
       const diffVehiclesArr = [
-        ...new Set(result.Items.map((res) => res.label)),
+        ...new Set(result.Items?.map((res) => res.label)),
       ];
-      console.log(diffVehiclesArr);
-      const vehiclesNum = diffVehiclesArr.length;
-      resBody = JSON.stringify(vehiclesNum);
-    }
-  } else if (path === "/numberofanomalies") {
-    const params = { TableName: tableName };
-    let anomalies = 0;
-    const result = await ddb
-      .scan(params, (err, data) => {
-        if (err) return "";
-        return data;
-      })
-      .promise();
-    if (!result.Items) {
-      resBody = "failed";
-    } else {
+      resBody = JSON.stringify(diffVehiclesArr.length);
+    } else if (path === "/numberofanomalies") {
+      let anomalies = 0;
+      const result = await ddb.scan(params).promise();
+      if (!result.Items) {
+        throw result;
+      }
       for (let report of result.Items) {
-        const { windows, airBag, infotainment } = report.signalsPerMinute;
-
-        if (
-          windows.sum > windows.acceptableMaxValue ||
-          windows.sum < windows.acceptableMinValue
-        ) {
-          anomalies++;
-        }
-        if (
-          airBag.sum > airBag.acceptableMaxValue ||
-          airBag.sum < airBag.acceptableMinValue
-        ) {
-          anomalies++;
-        }
-        if (
-          infotainment.sum > infotainment.acceptableMaxValue ||
-          infotainment.sum < infotainment.acceptableMinValue
-        ) {
-          anomalies++;
+        const { signalsPerMinute } = report;
+        for (let item in signalsPerMinute) {
+          if (
+            signalsPerMinute[item].sum >
+              signalsPerMinute[item].acceptableMaxValue ||
+            signalsPerMinute[item].sum <
+              signalsPerMinute[item].acceptableMinValue
+          ) {
+            anomalies++;
+          }
         }
       }
       resBody = JSON.stringify(anomalies);
     }
+  } catch (err) {
+    resBody = JSON.stringify(err);
+    resStatusCode = 500;
   }
   return { statusCode: resStatusCode, body: resBody };
 };

@@ -1,49 +1,34 @@
 import { Duration, Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import * as Lambda from "aws-cdk-lib/aws-lambda-nodejs";
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
-import * as s3 from "aws-cdk-lib/aws-s3";
-import * as iam from "aws-cdk-lib/aws-iam";
-import * as s3n from "aws-cdk-lib/aws-s3-notifications";
-import * as ddb from "aws-cdk-lib/aws-dynamodb";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
+import { Bucket, BucketEncryption, EventType } from "aws-cdk-lib/aws-s3";
+import { ServicePrincipal, ManagedPolicy, Role } from "aws-cdk-lib/aws-iam";
+import { LambdaDestination } from "aws-cdk-lib/aws-s3-notifications";
+import { Table, AttributeType } from "aws-cdk-lib/aws-dynamodb";
 export class ServerlessStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const reportsBucket = new s3.Bucket(this, "reportsBucket", {
+    //Phase I
+
+    const reportsBucket = new Bucket(this, "reportsBucket", {
       bucketName: "cymotive-reports-bucket",
-      encryption: s3.BucketEncryption.S3_MANAGED,
+      encryption: BucketEncryption.S3_MANAGED,
     });
-    const porterRole = new iam.Role(this, "roleLambdaPorter", {
+
+    const porterRole = new Role(this, "roleLambdaPorter", {
       roleName: "porterRole",
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
       managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaBasicExecutionRole"
-        ),
-      ],
-    });
-    const ingestRole = new iam.Role(this, "roleLambdaIngest", {
-      roleName: "ingestRole",
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaBasicExecutionRole"
-        ),
-      ],
-    });
-    const analyzerRole = new iam.Role(this, "roleLambdaAnalyzer", {
-      roleName: "analyzerRole",
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
+        ManagedPolicy.fromAwsManagedPolicyName(
           "service-role/AWSLambdaBasicExecutionRole"
         ),
       ],
     });
     reportsBucket.grantWrite(porterRole);
-    reportsBucket.grantRead(ingestRole);
-    const porterLambda = new Lambda.NodejsFunction(this, "porter", {
+
+    const porterLambda = new NodejsFunction(this, "porter", {
       functionName: "porter",
       entry: "./resource/porter.ts",
       handler: "handler",
@@ -53,17 +38,29 @@ export class ServerlessStack extends Stack {
       },
     });
 
-    const idsTable = new ddb.Table(this, "ids-table", {
-      partitionKey: { name: "vehicleId", type: ddb.AttributeType.STRING },
-      sortKey: { name: "label", type: ddb.AttributeType.STRING },
+    //Phase II
+
+    const idsTable = new Table(this, "ids-table", {
+      partitionKey: { name: "vehicleId", type: AttributeType.STRING },
+      sortKey: { name: "label", type: AttributeType.STRING },
       tableName: "ids-table",
       readCapacity: 5,
       writeCapacity: 5,
     });
 
+    const ingestRole = new Role(this, "roleLambdaIngest", {
+      roleName: "ingestRole",
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+      ],
+    });
+    reportsBucket.grantRead(ingestRole);
     idsTable.grantWriteData(ingestRole);
-    idsTable.grantReadData(analyzerRole);
-    const ingestLambda = new Lambda.NodejsFunction(this, "ingest", {
+
+    const ingestLambda = new NodejsFunction(this, "ingest", {
       functionName: "ingest",
       entry: "./resource/ingest.ts",
       handler: "handler",
@@ -74,7 +71,26 @@ export class ServerlessStack extends Stack {
       },
     });
 
-    const analyzerLambda = new Lambda.NodejsFunction(this, "analyzer", {
+    reportsBucket.addEventNotification(
+      EventType.OBJECT_CREATED,
+      new LambdaDestination(ingestLambda),
+      { suffix: ".json" }
+    );
+
+    //Phase III
+
+    const analyzerRole = new Role(this, "roleLambdaAnalyzer", {
+      roleName: "analyzerRole",
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+      ],
+    });
+    idsTable.grantReadData(analyzerRole);
+
+    const analyzerLambda = new NodejsFunction(this, "analyzer", {
       functionName: "analyzer",
       entry: "./resource/analyzer.ts",
       handler: "handler",
@@ -85,21 +101,15 @@ export class ServerlessStack extends Stack {
       },
     });
 
-    reportsBucket.addEventNotification(
-      s3.EventType.OBJECT_CREATED,
-      new s3n.LambdaDestination(ingestLambda),
-      { suffix: ".json" }
-    );
-
-    const idsgateway = new apigateway.RestApi(this, "idsgateway", {
+    const idsgateway = new RestApi(this, "idsgateway", {
       restApiName: "idsgateway",
+      deployOptions: { stageName: "dev" },
     });
+    const porterIntegration = new LambdaIntegration(porterLambda);
+    const analyzerIntegration = new LambdaIntegration(analyzerLambda);
 
-    const porterIntegration = new apigateway.LambdaIntegration(porterLambda);
-    const analyzerIntegration = new apigateway.LambdaIntegration(
-      analyzerLambda
-    );
     idsgateway.root.addMethod("POST", porterIntegration);
+
     idsgateway.root
       .addResource("numberofreports")
       .addMethod("GET", analyzerIntegration);
