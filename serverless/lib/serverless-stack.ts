@@ -32,6 +32,15 @@ export class ServerlessStack extends Stack {
         ),
       ],
     });
+    const analyzerRole = new iam.Role(this, "roleLambdaAnalyzer", {
+      roleName: "analyzerRole",
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+      ],
+    });
     reportsBucket.grantWrite(porterRole);
     reportsBucket.grantRead(ingestRole);
     const porterLambda = new Lambda.NodejsFunction(this, "porter", {
@@ -53,12 +62,24 @@ export class ServerlessStack extends Stack {
     });
 
     idsTable.grantWriteData(ingestRole);
+    idsTable.grantReadData(analyzerRole);
     const ingestLambda = new Lambda.NodejsFunction(this, "ingest", {
       functionName: "ingest",
       entry: "./resource/ingest.ts",
       handler: "handler",
       role: ingestRole,
       timeout: Duration.minutes(1),
+      environment: {
+        DDBTABLE: idsTable.tableName,
+      },
+    });
+
+    const analyzerLambda = new Lambda.NodejsFunction(this, "analyzer", {
+      functionName: "analyzer",
+      entry: "./resource/analyzer.ts",
+      handler: "handler",
+      role: analyzerRole,
+      timeout: Duration.seconds(10),
       environment: {
         DDBTABLE: idsTable.tableName,
       },
@@ -75,6 +96,18 @@ export class ServerlessStack extends Stack {
     });
 
     const porterIntegration = new apigateway.LambdaIntegration(porterLambda);
+    const analyzerIntegration = new apigateway.LambdaIntegration(
+      analyzerLambda
+    );
     idsgateway.root.addMethod("POST", porterIntegration);
+    idsgateway.root
+      .addResource("numberofreports")
+      .addMethod("GET", analyzerIntegration);
+    idsgateway.root
+      .addResource("numberofvehicles")
+      .addMethod("GET", analyzerIntegration);
+    idsgateway.root
+      .addResource("numberofanomalies")
+      .addMethod("GET", analyzerIntegration);
   }
 }

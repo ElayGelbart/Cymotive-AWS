@@ -10,7 +10,6 @@ export const handler = async (event: S3Event) => {
     Key: event.Records[0].s3.object.key,
     ResponseContentType: "application/json",
   };
-  console.log("s3Params", s3Params);
   try {
     const reportFile = await s3
       .getObject(s3Params, (err, data) => {
