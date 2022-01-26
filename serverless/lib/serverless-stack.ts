@@ -110,14 +110,31 @@ export class ServerlessStack extends Stack {
 
     idsgateway.root.addMethod("POST", porterIntegration);
 
-    idsgateway.root
-      .addResource("numberofreports")
-      .addMethod("GET", analyzerIntegration);
-    idsgateway.root
-      .addResource("numberofvehicles")
-      .addMethod("GET", analyzerIntegration);
-    idsgateway.root
-      .addResource("numberofanomalies")
-      .addMethod("GET", analyzerIntegration);
+    const numOfReportsResource = idsgateway.root.addResource("numberofreports");
+    numOfReportsResource.addMethod("GET", analyzerIntegration);
+    numOfReportsResource.addCorsPreflight({
+      allowOrigins: ["*"],
+      allowHeaders: ["*"],
+      allowCredentials: true,
+      allowMethods: ["*"],
+    });
+    const numOfVehiclesResource =
+      idsgateway.root.addResource("numberofvehicles");
+    numOfVehiclesResource.addCorsPreflight({
+      allowOrigins: ["*"],
+      allowHeaders: ["*"],
+      allowCredentials: true,
+      allowMethods: ["*"],
+    });
+    numOfVehiclesResource.addMethod("GET", analyzerIntegration);
+    const numOfAnomaliesResource =
+      idsgateway.root.addResource("numberofanomalies");
+    numOfAnomaliesResource.addCorsPreflight({
+      allowOrigins: ["*"],
+      allowHeaders: ["*"],
+      allowCredentials: true,
+      allowMethods: ["*"],
+    });
+    numOfAnomaliesResource.addMethod("GET", analyzerIntegration);
   }
 }
