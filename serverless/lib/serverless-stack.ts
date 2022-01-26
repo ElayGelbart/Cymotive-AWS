@@ -1,22 +1,123 @@
-import { Stack, StackProps } from "aws-cdk-lib";
+import { Duration, Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import * as Lambda from "aws-cdk-lib/aws-lambda-nodejs";
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
-
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
+import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
+import { Bucket, BucketEncryption, EventType } from "aws-cdk-lib/aws-s3";
+import { ServicePrincipal, ManagedPolicy, Role } from "aws-cdk-lib/aws-iam";
+import { LambdaDestination } from "aws-cdk-lib/aws-s3-notifications";
+import { Table, AttributeType } from "aws-cdk-lib/aws-dynamodb";
 export class ServerlessStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const idsgateway = new apigateway.RestApi(this, "idsgateway", {
-      restApiName: "idsgateway",
+    //Phase I
+
+    const reportsBucket = new Bucket(this, "reportsBucket", {
+      bucketName: "cymotive-reports-bucket",
+      encryption: BucketEncryption.S3_MANAGED,
     });
 
-    const porterLambda = new Lambda.NodejsFunction(this, "porter", {
+    const porterRole = new Role(this, "roleLambdaPorter", {
+      roleName: "porterRole",
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+      ],
+    });
+    reportsBucket.grantWrite(porterRole);
+
+    const porterLambda = new NodejsFunction(this, "porter", {
       functionName: "porter",
-      handler,
+      entry: "./resource/porter.ts",
+      handler: "handler",
+      role: porterRole,
+      environment: {
+        BUCKET: reportsBucket.bucketName,
+      },
     });
 
-    const porterIntegration = new apigateway.LambdaIntegration(porterLambda);
+    //Phase II
+
+    const idsTable = new Table(this, "ids-table", {
+      partitionKey: { name: "vehicleId", type: AttributeType.STRING },
+      sortKey: { name: "label", type: AttributeType.STRING },
+      tableName: "ids-table",
+      readCapacity: 5,
+      writeCapacity: 5,
+    });
+
+    const ingestRole = new Role(this, "roleLambdaIngest", {
+      roleName: "ingestRole",
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+      ],
+    });
+    reportsBucket.grantRead(ingestRole);
+    idsTable.grantWriteData(ingestRole);
+
+    const ingestLambda = new NodejsFunction(this, "ingest", {
+      functionName: "ingest",
+      entry: "./resource/ingest.ts",
+      handler: "handler",
+      role: ingestRole,
+      timeout: Duration.minutes(1),
+      environment: {
+        DDBTABLE: idsTable.tableName,
+      },
+    });
+
+    reportsBucket.addEventNotification(
+      EventType.OBJECT_CREATED,
+      new LambdaDestination(ingestLambda),
+      { suffix: ".json" }
+    );
+
+    //Phase III
+
+    const analyzerRole = new Role(this, "roleLambdaAnalyzer", {
+      roleName: "analyzerRole",
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+      ],
+    });
+    idsTable.grantReadData(analyzerRole);
+
+    const analyzerLambda = new NodejsFunction(this, "analyzer", {
+      functionName: "analyzer",
+      entry: "./resource/analyzer.ts",
+      handler: "handler",
+      role: analyzerRole,
+      timeout: Duration.seconds(10),
+      environment: {
+        DDBTABLE: idsTable.tableName,
+      },
+    });
+
+    const idsgateway = new RestApi(this, "idsgateway", {
+      restApiName: "idsgateway",
+      deployOptions: { stageName: "dev" },
+    });
+    const porterIntegration = new LambdaIntegration(porterLambda);
+    const analyzerIntegration = new LambdaIntegration(analyzerLambda);
+
     idsgateway.root.addMethod("POST", porterIntegration);
+
+    idsgateway.root
+      .addResource("numberofreports")
+      .addMethod("GET", analyzerIntegration);
+    idsgateway.root
+      .addResource("numberofvehicles")
+      .addMethod("GET", analyzerIntegration);
+    idsgateway.root
+      .addResource("numberofanomalies")
+      .addMethod("GET", analyzerIntegration);
   }
 }
