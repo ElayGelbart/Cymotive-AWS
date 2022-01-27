@@ -1,8 +1,9 @@
+import React from "react";
 import svg from "../assets/logo.svg";
 import wave from "../assets/wave.png";
 //@ts-ignore
 import video from "../assets/Cymotive_Homepage.mp4";
-export default function Header() {
+function Header() {
   return (
     <header id="pageHeader">
       <img id="logo" src={svg} alt="cymotive logo" />
@@ -22,3 +23,4 @@ export default function Header() {
     </header>
   );
 }
+export default React.memo(Header);

@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, APIGatewayProxyHandler } from "aws-lambda";
+import { APIGatewayProxyEvent } from "aws-lambda";
 import { nanoid } from "nanoid";
 import * as AWS from "aws-sdk";
 const s3 = new AWS.S3({ region: "eu-west-1" });
