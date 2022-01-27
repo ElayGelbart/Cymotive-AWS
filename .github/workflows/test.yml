@@ -39,4 +39,4 @@ jobs:
       - name: Create CloudFormation Template
         run: cdk synth
       - name: Test Serverless
-        run: npm test
+        run: npm run test
