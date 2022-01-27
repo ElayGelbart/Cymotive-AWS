@@ -22,7 +22,7 @@ jobs:
         run: npm install
       - name: install CDK cli
         run: npm install -g aws-cdk
-      - name: Deploy
-        run: |
-          cdk synth &
-          cdk deploy
+      - name: Create CloudFormation Template
+        run: cdk synth
+      - name: Deploy CDK Stack
+        run: cdk deploy
