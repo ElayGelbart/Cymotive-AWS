@@ -4,4 +4,5 @@ declare namespace State {
     numberofanomalies: string;
     numberofvehicles: string;
   }
+  type statName = "numberofreports" | "numberofanomalies" | "numberofvehicles";
 }

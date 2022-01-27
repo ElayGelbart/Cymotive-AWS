@@ -8,14 +8,13 @@ const initStats = {
 export default function Stats() {
   const [stats, setStats] = useState<State.stats>(initStats);
   const getNumOfFromLambda = useCallback(
-    async (numOfWhat: string) => {
+    async (numOfWhat: State.statName) => {
       try {
         const response = await axios.get(
           `https://vhqy0gu1x1.execute-api.eu-west-1.amazonaws.com/dev/${numOfWhat}`
         );
         const answer = await response.data;
         const newStats = { ...stats };
-        // @ts-ignore
         newStats[numOfWhat] = answer;
         return setStats(newStats);
       } catch (err) {
@@ -29,7 +28,6 @@ export default function Stats() {
       <p
         className="button"
         onClick={() => {
-          //@ts-ignore
           getNumOfFromLambda("numberofreports");
         }}
       >
