@@ -11,7 +11,7 @@ env:
 
 jobs:
   Deploy CDK:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: serverless
@@ -20,6 +20,9 @@ jobs:
       - uses: actions/setup-node@v2
       - name: install dependencies
         run: npm install
+      - name: install CDK cli
+        run: npm install -g aws-cdk
       - name: Deploy
-        run: cdk synth
-        run: cdk deploy
+        run: |
+          cdk synth &
+          cdk deploy

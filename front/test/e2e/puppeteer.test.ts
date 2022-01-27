@@ -2,7 +2,7 @@ import puppeteer from "puppeteer";
 let browser: puppeteer.Browser;
 let page: puppeteer.Page;
 beforeAll(async () => {
-  browser = await puppeteer.launch({ headless: false });
+  browser = await puppeteer.launch();
   page = await browser.newPage();
   await page.goto("http://localhost:3000/");
 }, 60000);
