@@ -10,7 +10,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  Deploy CDK:
+  Deploy_CDK:
     runs-on: ubuntu-latest
     defaults:
       run:
