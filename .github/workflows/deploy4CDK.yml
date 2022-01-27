@@ -21,5 +21,6 @@ jobs:
       - name: install dependencies
         run: npm install
       - name: Deploy
-        run: cdk synth
-        run: cdk deploy
+        run: |
+          cdk synth &
+          cdk deploy
