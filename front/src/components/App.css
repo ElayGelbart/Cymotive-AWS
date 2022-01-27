@@ -24,16 +24,21 @@ header {
   font-size: xx-large;
 }
 #wave {
-  background-color: black;
+  background-color: transparent;
   width: 100vw;
+  position: absolute;
+  left: 0;
+  bottom: 0;
 }
 video {
   object-fit: cover;
   width: 100vw;
-  height: 500px;
+  height: 666px;
 }
 #videoDiv {
   margin-bottom: -5px;
+  position: relative;
+  z-index: -1;
 }
 .button {
   cursor: pointer;
@@ -66,15 +71,15 @@ video {
 .button span {
   position: relative;
 }
+.button:hover {
+  color: darkred;
+  transform: scale(1.1);
+}
 #statsDiv {
   position: fixed;
   bottom: 20vh;
   width: 100%;
   display: flex;
-}
-.button:hover {
-  color: darkred;
-  transform: scale(1.1);
 }
 @media only screen and (max-width: 800px) {
   #statsDiv {
