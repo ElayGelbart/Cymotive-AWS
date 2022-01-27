@@ -1,0 +1,40 @@
+name: Testing
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  test_e2e:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+      - name: install dependencies front
+        run: npm i
+      - name: Test E2E
+      - run: |
+          npm start &
+          npm run test
+  test_serverless:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: serverless
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+      - name: install dependencies serverless
+        run: npm i
+      - name: Create CloudFormation Template
+        run: cdk synth
+      - name: Test Serverless
+        run: npm test
