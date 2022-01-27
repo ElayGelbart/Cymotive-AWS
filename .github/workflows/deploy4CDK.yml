@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-node@v2
       - name: install dependencies
         run: npm install
+      - name: install CDK cli
+        run: npm install -g aws-cdk
       - name: Deploy
         run: |
           cdk synth &

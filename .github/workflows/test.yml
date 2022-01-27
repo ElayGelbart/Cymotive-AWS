@@ -34,6 +34,8 @@ jobs:
       - uses: actions/setup-node@v2
       - name: install dependencies serverless
         run: npm i
+      - name: install CDK cli
+        run: npm install -g aws-cdk
       - name: Create CloudFormation Template
         run: cdk synth
       - name: Test Serverless
